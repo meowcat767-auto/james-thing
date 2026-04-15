@@ -4,6 +4,7 @@ import subprocess
 import json
 from dotenv import load_dotenv
 from groq import Groq
+from duckduckgo_search import DDGS
 
 # Load environment variables from .env file
 load_dotenv()
@@ -17,6 +18,14 @@ def get_groq_client():
     return Groq(api_key=api_key)
 
 # Tool Definitions
+def web_search(query):
+    try:
+        with DDGS() as ddgs:
+            results = [r for r in ddgs.text(query, max_results=5)]
+            return json.dumps(results, indent=2)
+    except Exception as e:
+        return f"Error performing web search: {str(e)}"
+
 def write_file(path, content):
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -84,6 +93,20 @@ tools = [
                 "required": ["command"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": "Search the web for information using DuckDuckGo.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "The search query."}
+                },
+                "required": ["query"]
+            }
+        }
     }
 ]
 
@@ -96,17 +119,19 @@ class CodeAgent:
                 "role": "system",
                 "content": (
                     "You are a powerful AI agent capable of building entire applications from scratch. "
-                    "You have access to tools that allow you to write files, create directories, and run commands. "
+                    "You have access to tools that allow you to write files, create directories, run commands, and search the web. "
                     "You may use any tools as you see fit, and any programming languages you see fit. "
                     "You also have support for Git. Git credentials (GIT_USERNAME and GIT_TOKEN) are available in the environment. "
                     "The target repository is: https://git.meowcat.site/james/thing.git "
                     "When using Git, you can push/pull using credentials in the URL: https://${GIT_USERNAME}:${GIT_TOKEN}@git.meowcat.site/james/thing.git "
-                    "When asked to build an app, think step-by-step. "
-                    "1. Plan the structure. "
-                    "2. Create the necessary directories. "
-                    "3. Write the code files. "
-                    "4. Initialize Git and commit if appropriate. "
-                    "5. Provide instructions on how to run the app. "
+                    "Your primary mission is to build a 3D shooter game called 'james game' using web languages (HTML/CSS/JS/Three.js) that can be easily deployed. "
+                    "When asked to build an app or research a topic, think step-by-step. "
+                    "1. If needed, use web_search to find the latest information or best practices. "
+                    "2. Plan the structure. "
+                    "3. Create the necessary directories. "
+                    "4. Write the code files. "
+                    "5. Initialize Git and commit if appropriate. "
+                    "6. Provide instructions on how to run the app. "
                     "Always use the available tools to perform these actions."
                 )
             }
@@ -126,6 +151,8 @@ class CodeAgent:
                 result = make_directory(args.get("path"))
             elif function_name == "run_command":
                 result = run_command(args.get("command"))
+            elif function_name == "web_search":
+                result = web_search(args.get("query"))
             else:
                 result = "Unknown tool"
             

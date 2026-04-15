@@ -179,6 +179,7 @@ tools = [
                 "required": ["url", "save_path"]
             }
         }
+    },
     {
         "type": "function",
         "function": {

@@ -41,12 +41,15 @@ def web_search(query):
 
 def write_file(path, content):
     try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        dir_name = os.path.dirname(path)
+        if dir_name:
+            os.makedirs(dir_name, exist_ok=True)
         with open(path, "w") as f:
             f.write(content)
         return f"Successfully wrote to {path}"
     except Exception as e:
-        return f"Error writing to {path}: {str(e)}"
+        abs_path = os.path.abspath(path)
+        return f"Error writing to {path} (abs: {abs_path}): {str(e)}"
 
 def make_directory(path):
     try:

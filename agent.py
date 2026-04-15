@@ -298,6 +298,8 @@ class CodeAgent:
                             result = download_image(args.get("url"), args.get("save_path"))
                         elif func_name == "git_operation":
                             result = git_operation(args.get("command_type"), args.get("message"), args.get("repo_url"))
+                        elif func_name == "list_files":
+                            result = list_files(args.get("path", "."))
                         else:
                             result = "Unknown tool"
                             
@@ -332,6 +334,8 @@ class CodeAgent:
                 result = download_image(args.get("url"), args.get("save_path"))
             elif function_name == "git_operation":
                 result = git_operation(args.get("command_type"), args.get("message"), args.get("repo_url"))
+            elif function_name == "list_files":
+                result = list_files(args.get("path", "."))
             else:
                 result = "Unknown tool"
             

@@ -1,0 +1,4 @@
+groq
+python-dotenv
+duckduckgo_search
+requests

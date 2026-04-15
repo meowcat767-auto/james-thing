@@ -163,6 +163,8 @@ class CodeAgent:
                     "6. Provide instructions on how to run the app. "
                     "7. After completion, identify areas for improvement and repeat the process. "
                     "Always use the available tools to perform these actions."
+                    "\nIMPORTANT: Call tools one at a time. Do not attempt to call multiple tools in a single response unless they are logically independent. "
+                    "Wait for the result of each tool before proceeding to the next step."
                 )
             }
         ]

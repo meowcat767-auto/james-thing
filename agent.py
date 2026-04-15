@@ -13,9 +13,13 @@ load_dotenv()
 def get_groq_client():
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        print("Error: GROQ_API_KEY not found in .env file.")
+        print("Error: GROQ_API_KEY not found in .env file or environment.")
+    else:
+        print(f"Diagnostics: GROQ_API_KEY found (length: {len(api_key)})")
+    
     if not os.getenv("GIT_USERNAME") or not os.getenv("GIT_TOKEN"):
         print("Warning: GIT_USERNAME or GIT_TOKEN not found. Git operations may fail.")
+    
     if not api_key:
         return None
     return Groq(api_key=api_key)
@@ -346,6 +350,8 @@ class CodeAgent:
 
         while True:
             try:
+                if verbose:
+                    print(f"  [Thinking with {self.model}...]")
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=self.messages,
@@ -444,11 +450,13 @@ def main():
         try:
             if first_run:
                 print("\n[Loop Start] Initial Mission: Building 'James Game'...")
-                agent.chat("Start your mission and build 'James Game' from scratch. Use web languages and textures.", verbose=True)
+                response = agent.chat("Start your mission and build 'James Game' from scratch. Use web languages and textures.", verbose=True)
+                print(f"\n[Turn Result] {response}")
                 first_run = False
             else:
                 print("\n[Loop Tick] Checking for improvements or new tasks...")
-                agent.chat("Review the current state of 'James Game'. If it can be improved (textures, features, polish), do so. Otherwise, look for ways to expand the app or build a companion app. Always use tools.", verbose=True)
+                response = agent.chat("Review the current state of 'James Game'. If it can be improved (textures, features, polish), do so. Otherwise, look for ways to expand the app or build a companion app. Always use tools.", verbose=True)
+                print(f"\n[Turn Result] {response}")
             
             print("\nCycle complete. Waiting 10 seconds before next iteration...")
             time.sleep(10)

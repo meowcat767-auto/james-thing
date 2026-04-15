@@ -27,7 +27,8 @@ def verify():
         import groq
         import dotenv
         import duckduckgo_search
-        print("[OK] Dependencies (groq, python-dotenv, duckduckgo_search) are installed.")
+        import requests
+        print("[OK] Dependencies (groq, python-dotenv, duckduckgo_search, requests) are installed.")
     except ImportError as e:
         print(f"[FAIL] Dependency missing: {e}")
 

@@ -5,6 +5,7 @@ import json
 from dotenv import load_dotenv
 from groq import Groq
 from duckduckgo_search import DDGS
+import requests
 
 # Load environment variables from .env file
 load_dotenv()
@@ -18,6 +19,18 @@ def get_groq_client():
     return Groq(api_key=api_key)
 
 # Tool Definitions
+def download_image(url, save_path):
+    try:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        response = requests.get(url, stream=True, timeout=10)
+        response.raise_for_status()
+        with open(save_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        return f"Successfully downloaded image to {save_path}"
+    except Exception as e:
+        return f"Error downloading image from {url}: {str(e)}"
+
 def web_search(query):
     try:
         with DDGS() as ddgs:
@@ -107,6 +120,21 @@ tools = [
                 "required": ["query"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "download_image",
+            "description": "Download an image from a URL and save it locally.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "The URL of the image to download."},
+                    "save_path": {"type": "string", "description": "The local path where the image should be saved (e.g., 'assets/image.png')."}
+                },
+                "required": ["url", "save_path"]
+            }
+        }
     }
 ]
 
@@ -119,19 +147,21 @@ class CodeAgent:
                 "role": "system",
                 "content": (
                     "You are a powerful AI agent capable of building entire applications from scratch. "
-                    "You have access to tools that allow you to write files, create directories, run commands, and search the web. "
+                    "You have access to tools that allow you to write files, create directories, run commands, search the web, and download images. "
                     "You may use any tools as you see fit, and any programming languages you see fit. "
                     "You also have support for Git. Git credentials (GIT_USERNAME and GIT_TOKEN) are available in the environment. "
                     "The target repository is: https://git.meowcat.site/james/thing.git "
                     "When using Git, you can push/pull using credentials in the URL: https://${GIT_USERNAME}:${GIT_TOKEN}@git.meowcat.site/james/thing.git "
                     "Your primary mission is to build a 3D shooter game called 'james game' using web languages (HTML/CSS/JS/Three.js) that can be easily deployed. "
+                    "Use images you download as textures for the 3D objects in your games to make them look high-quality. "
                     "When asked to build an app or research a topic, think step-by-step. "
-                    "1. If needed, use web_search to find the latest information or best practices. "
+                    "1. If needed, use web_search to find the latest information or best practices, and download_image to fetch textures or assets. "
                     "2. Plan the structure. "
                     "3. Create the necessary directories. "
-                    "4. Write the code files. "
+                    "4. Write the code files, ensuring you apply downloaded textures where appropriate. "
                     "5. Initialize Git and commit if appropriate. "
                     "6. Provide instructions on how to run the app. "
+                    "7. After completion, identify areas for improvement and repeat the process. "
                     "Always use the available tools to perform these actions."
                 )
             }
@@ -143,7 +173,8 @@ class CodeAgent:
             function_name = tool_call.function.name
             args = json.loads(tool_call.function.arguments)
             
-            print(f"\n[Tool Call] {function_name}({args})")
+            # Clean logging
+            print(f"  [ACTION] {function_name}({args})")
             
             if function_name == "write_file":
                 result = write_file(args.get("path"), args.get("content"))
@@ -153,10 +184,12 @@ class CodeAgent:
                 result = run_command(args.get("command"))
             elif function_name == "web_search":
                 result = web_search(args.get("query"))
+            elif function_name == "download_image":
+                result = download_image(args.get("url"), args.get("save_path"))
             else:
                 result = "Unknown tool"
             
-            print(f"[Result] {result}")
+            print(f"  [RESULT] {result}")
             results.append({
                 "tool_call_id": tool_call.id,
                 "role": "tool",
@@ -165,7 +198,7 @@ class CodeAgent:
             })
         return results
 
-    def chat(self, user_input):
+    def chat(self, user_input, verbose=True):
         if not self.client:
             return "Groq client not initialized. Check your .env file."
 
@@ -186,39 +219,54 @@ class CodeAgent:
                 if response_message.tool_calls:
                     tool_results = self.process_tool_calls(response_message.tool_calls)
                     self.messages.extend(tool_results)
-                    # Continue the loop to let the model react to tool results
                 else:
+                    if verbose:
+                        print(f"\nAgent: {response_message.content}")
                     return response_message.content
 
             except Exception as e:
-                return f"An error occurred: {str(e)}"
+                error_msg = f"An error occurred: {str(e)}"
+                if verbose:
+                    print(error_msg)
+                return error_msg
+
+import time
 
 def main():
     agent = CodeAgent()
     if not agent.client:
         return
 
+    # Check for command-line arguments
     if len(sys.argv) > 1:
         user_input = " ".join(sys.argv[1:])
-        response = agent.chat(user_input)
-        print(f"\nAgent: {response}")
+        print(f"--- Running Command: {user_input} ---")
+        agent.chat(user_input, verbose=True)
         return
 
-    print("--- Groq Code Agent (App Builder) ---")
-    print("Type 'exit' or 'quit' to stop.")
+    # Infinite Automatic Mode
+    print("--- Groq Code Agent (INFINITE AUTO MODE) ---")
+    print("Starting mission loop...")
     
+    first_run = True
     while True:
         try:
-            user_input = input("\nYou: ")
-        except (KeyboardInterrupt, EOFError):
-            break
+            if first_run:
+                print("\n[Loop Start] Initial Mission: Building 'James Game'...")
+                agent.chat("Start your mission and build 'James Game' from scratch. Use web languages and textures.", verbose=True)
+                first_run = False
+            else:
+                print("\n[Loop Tick] Checking for improvements or new tasks...")
+                agent.chat("Review the current state of 'James Game'. If it can be improved (textures, features, polish), do so. Otherwise, look for ways to expand the app or build a companion app. Always use tools.", verbose=True)
             
-        if user_input.lower() in ["exit", "quit"]:
+            print("\nCycle complete. Waiting 10 seconds before next iteration...")
+            time.sleep(10)
+        except KeyboardInterrupt:
+            print("\nInfinite loop stopped by user.")
             break
-        
-        print("\nAgent is thinking...", end="", flush=True)
-        response = agent.chat(user_input)
-        print(f"\nAgent: {response}")
+        except Exception as e:
+            print(f"\nError in loop: {str(e)}")
+            time.sleep(30)
 
 if __name__ == "__main__":
     main()

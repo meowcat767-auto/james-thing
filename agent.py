@@ -274,6 +274,35 @@ tools = [
     }
 ]
 
+def extract_balanced_json(text, start_pos):
+    """Extract a brace-balanced JSON object starting at start_pos (which should point to '{')."""
+    if start_pos >= len(text) or text[start_pos] != '{':
+        return None
+    depth = 0
+    in_string = False
+    escape_next = False
+    for i in range(start_pos, len(text)):
+        c = text[i]
+        if escape_next:
+            escape_next = False
+            continue
+        if c == '\\' and in_string:
+            escape_next = True
+            continue
+        if c == '"' and not escape_next:
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if c == '{':
+            depth += 1
+        elif c == '}':
+            depth -= 1
+            if depth == 0:
+                return text[start_pos:i+1]
+    return None
+
+
 class CodeAgent:
     def __init__(self, models=["openrouter/free"]):
         self.client = get_openrouter_client()
@@ -282,12 +311,15 @@ class CodeAgent:
         self.model = self.models[self.model_index]
         self.cwd = os.getcwd()
         self.consecutive_errors = 0
+        self.empty_response_count = 0
         self.messages = [
             {
                 "role": "system",
                 "content": (
                     "You are a coding agent with tools. Build 'james game' (3D shooter) using Web Technologies (HTML/CSS/JS/Three.js). "
-                    "FLOW: 1. Search/Download assets. 2. Write files (index.html, JS, etc.). 3. Git add. 4. Git commit. 5. Git push. "
+                    "FLOW: 1. Search/Download assets. 2. Write files (index.html, JS, etc.). 3. Git commit. 4. Git push. REPEAT. "
+                    "CRITICAL: After writing ANY files, you MUST immediately call git_operation with command_type='commit', then git_operation with command_type='push'. "
+                    "NEVER leave files uncommitted. NEVER skip the push step. "
                     "Use list_files to verify your work. Use git_operation for Git targeting: https://git.meowcat.site/james/thing.git "
                     "Use 'cd' to change your working directory if needed. Your CWD persists. "
                     "Create a .gitignore file excluding *.py, .env, venv/. "
@@ -295,7 +327,8 @@ class CodeAgent:
                     "### TOOL CALLING RULES:\n"
                     "1. Execute tools by outputting tags like: <function=tool_name{\"arg\": \"val\"}></function>\n"
                     "2. ALWAYS use valid JSON for arguments.\n"
-                    "3. ONLY output the tool call tag when using a tool.\n"
+                    "3. ONLY output ONE tool call per message. Wait for the result before calling the next tool.\n"
+                    "4. NEVER output plain text without a tool call. Always use a tool.\n"
                     "### TOOL DEFINITIONS:\n"
                     f"{json.dumps(tools, indent=2)}\n"
                     "\nAVAILABLE TOOLS: web_search, download_image, write_file, make_directory, run_command, git_operation, list_files, cd."
@@ -350,16 +383,19 @@ class CodeAgent:
             if role == "system":
                 msg["content"] = (
                     f"You are a coding agent. Your CWD is: {self.cwd}. Build 'james game' (HTML/JS/Three.js). "
+                    "### MANDATORY WORKFLOW:\n"
+                    "After writing files: ALWAYS git_operation commit, then git_operation push. NEVER skip this.\n"
                     "### MANDATORY GIT URL:\n"
                     "Use git_operation for Git targeting: https://git.meowcat.site/james/thing.git\n"
                     "NEVER hallucinate or use any other Git URLs (like GitHub placeholders).\n\n"
                     "### TOOL USE RULES:\n"
                     "1. Execute tools by outputting tags: <function=tool_name{\"arg\": \"val\"}></function>\n"
-                    "2. Use tools one-by-one.\n"
+                    "2. Use tools one-by-one. Output ONE tool call per message.\n"
                     "3. NEVER hallucinate URLs (use web_search).\n"
                     "4. NEVER modify .env or credentials.\n"
                     "5. ALWAYS use relative paths from Your CWD.\n"
-                    "6. Your CWD persists across turns.\n\n"
+                    "6. Your CWD persists across turns.\n"
+                    "7. NEVER output a message without a tool call. Always use a tool.\n\n"
                     "### TOOL DEFINITIONS:\n"
                     f"{json.dumps(tools, indent=2)}\n"
                     "\nAVAILABLE TOOLS: web_search, download_image, write_file, make_directory, run_command, git_operation, list_files, cd."
@@ -396,35 +432,45 @@ class CodeAgent:
                         })
                     self.messages.extend(results)
                 elif response_message.content:
-                    # Fallback for textual tool calls
-                    import re
-                    patterns = [
-                        r'(?:<function=)?(\w+)\s*(\{.*?\})(?:</function>)?',
-                        r'(\w+)\((.*?)\)'
-                    ]
+                    # Fallback for textual tool calls using brace-balanced extraction
+                    content = response_message.content
                     executed_any = False
                     fallback_results = []
-                    for pattern in patterns:
-                        for match in re.finditer(pattern, response_message.content):
-                            func_name = match.group(1)
-                            args_str = match.group(2)
-                            if any(t["function"]["name"] == func_name for t in tools):
-                                try:
-                                    if args_str.startswith('{'):
-                                        args = json.loads(args_str)
-                                        result = self.execute_tool(func_name, args)
+                    
+                    # Pattern: <function=tool_name{...JSON...}></function>
+                    tool_names = [t["function"]["name"] for t in tools]
+                    for tool_name in tool_names:
+                        # Look for <function=tool_name{ or just tool_name{
+                        for prefix in [f'<function={tool_name}', f'{tool_name}']:
+                            search_start = 0
+                            while True:
+                                idx = content.find(prefix, search_start)
+                                if idx == -1:
+                                    break
+                                # Find the opening brace
+                                brace_start = content.find('{', idx + len(prefix) - 1)
+                                if brace_start == -1 or brace_start > idx + len(prefix) + 2:
+                                    search_start = idx + 1
+                                    continue
+                                json_str = extract_balanced_json(content, brace_start)
+                                if json_str:
+                                    try:
+                                        args = json.loads(json_str)
+                                        result = self.execute_tool(tool_name, args)
                                         fallback_results.append({
-                                            "function": func_name,
+                                            "function": tool_name,
                                             "result": result
                                         })
                                         executed_any = True
-                                except Exception:
-                                    continue
+                                    except json.JSONDecodeError:
+                                        pass
+                                search_start = brace_start + len(json_str) if json_str else idx + 1
                     
                     if executed_any:
+                        self.empty_response_count = 0
                         self.messages.append({
                             "role": "user",
-                            "content": f"SYSTEM NOTE: Textual tool call results: {json.dumps(fallback_results)}"
+                            "content": f"SYSTEM NOTE: Tool results: {json.dumps(fallback_results)}\n\nIMPORTANT: If you just wrote files, you MUST now call git_operation with command_type='commit' and a descriptive message, then git_operation with command_type='push'."
                         })
                         continue # Re-query model to react to results
                     
@@ -433,12 +479,25 @@ class CodeAgent:
                     
                     # Reset error counters on success
                     self.consecutive_errors = 0
+                    self.empty_response_count = 0
                     self.model_index = 0
                     self.model = self.models[self.model_index]
                     
                     return response_message.content
                 else:
-                    return "Model returned empty response."
+                    # Empty response recovery
+                    self.empty_response_count += 1
+                    if self.empty_response_count < 3:
+                        if verbose:
+                            print(f"\n[Empty Response #{self.empty_response_count}] Nudging model...")
+                        self.messages.append({
+                            "role": "user",
+                            "content": "SYSTEM NOTE: You returned an empty response. You MUST use a tool. Call list_files to check your current state, then continue building or improving the game. After writing files, always commit and push."
+                        })
+                        continue
+                    else:
+                        self.empty_response_count = 0
+                        return "Model returned empty response after multiple retries."
 
             except Exception as e:
                 error_msg = str(e)

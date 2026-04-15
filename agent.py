@@ -152,7 +152,7 @@ class CodeAgent:
                     "You also have support for Git. Git credentials (GIT_USERNAME and GIT_TOKEN) are available in the environment. "
                     "The target repository is: https://git.meowcat.site/james/thing.git "
                     "When using Git, you can push/pull using credentials in the URL: https://${GIT_USERNAME}:${GIT_TOKEN}@git.meowcat.site/james/thing.git "
-                    "Your primary mission is to build a 3D shooter game called 'james game' using web languages (HTML/CSS/JS/Three.js) that can be easily deployed. Please. "
+                    "Your primary mission is to build a 3D shooter game called 'james game' using web languages (HTML/CSS/JS/Three.js) that can be easily deployed. "
                     "Use images you download as textures for the 3D objects in your games to make them look high-quality. "
                     "When asked to build an app or research a topic, think step-by-step. "
                     "1. If needed, use web_search to find the latest information or best practices, and download_image to fetch textures or assets. "

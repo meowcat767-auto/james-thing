@@ -92,12 +92,15 @@ def git_operation(command_type, message=None, repo_url=None, cwd="."):
         elif command_type == "commit":
             if not message:
                 return "Error: 'commit' operation requires a 'message'."
+            # Auto-add before commit for robustness
+            subprocess.run("git add .", shell=True, cwd=cwd)
             # Check if there are changes to commit
             status = subprocess.run("git status --porcelain", shell=True, capture_output=True, text=True, cwd=cwd)
             if not status.stdout.strip():
                 return "Git commit aborted: Nothing to commit, working tree clean."
             cmd = f'git commit -m "{message}"'
         elif command_type == "push":
+            # Auto-add and commit empty-ish if needed? No, just push.
             subprocess.run("git remote remove origin", shell=True, capture_output=True, cwd=cwd)
             subprocess.run(f"git remote add origin {cred_url}", shell=True, capture_output=True, cwd=cwd)
             cmd = "git push -u origin master"

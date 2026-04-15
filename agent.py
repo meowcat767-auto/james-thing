@@ -325,15 +325,21 @@ class CodeAgent:
         # Provide CWD info in system prompt dynamically
         for msg in self.messages:
             role = getattr(msg, 'role', None) or (msg.get('role') if isinstance(msg, dict) else None)
-            if role == "system":
                 msg["content"] = (
                     f"You are a coding agent. Your CWD is: {self.cwd}. Build 'james game' (HTML/JS/Three.js). "
-                    "FLOW: 1. Search/Download assets. 2. Write files. 3. Git commit (auto-adds files). 4. Git push. "
-                    "Use Git via 'git_operation' targeting: https://git.meowcat.site/james/thing.git "
-                    "Use 'cd' to change directory. Your CWD persists. ALWAYS use relative paths from your CWD. "
-                    "DO NOT use '../../' to escape your project folder. "
-                    "CRITICAL: NEVER modify .env or any credentials/tokens. Use them but do not change them. "
-                    "NEVER use <function=...> tags. DO NOT hallucinate URLs."
+                    "### TOOL USE RULES:\n"
+                    "1. Use tools one-by-one.\n"
+                    "2. Use the native function calling API or write: tool_name({\"arg\": \"val\"})\n"
+                    "3. NEVER USE <function> tags.\n"
+                    "4. NEVER hallucinate URLs (use web_search).\n"
+                    "5. NEVER modify .env or credentials.\n"
+                    "6. ALWAYS use relative paths from Your CWD.\n"
+                    "7. Your CWD persists across turns.\n\n"
+                    "### FLOW:\n"
+                    "1. Search/Download assets. -> 2. Write files. -> 3. Git commit. -> 4. Git push.\n\n"
+                    "### EXAMPLES:\n"
+                    "BAD: <function=write_file{\"path\": \"test.txt\"}</function>\n"
+                    "GOOD: write_file({\"path\": \"test.txt\", \"content\": \"hello\"})\n"
                     "\nTOOLS: web_search, download_image, write_file, make_directory, run_command, git_operation, list_files, cd."
                 )
 

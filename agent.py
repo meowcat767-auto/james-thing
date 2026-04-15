@@ -92,7 +92,9 @@ def git_operation(command_type, message=None, repo_url=None, cwd="."):
         elif command_type == "commit":
             if not message:
                 return "Error: 'commit' operation requires a 'message'."
-            # Auto-add before commit for robustness
+            # Configure identity and auto-add before commit
+            subprocess.run('git config user.email "james@james.net"', shell=True, cwd=cwd)
+            subprocess.run('git config user.name "James"', shell=True, cwd=cwd)
             subprocess.run("git add .", shell=True, cwd=cwd)
             # Check if there are changes to commit
             status = subprocess.run("git status --porcelain", shell=True, capture_output=True, text=True, cwd=cwd)
@@ -319,6 +321,19 @@ class CodeAgent:
     def chat(self, user_input, verbose=True):
         if not self.client:
             return "Groq client not initialized. Check your .env file."
+
+        # Provide CWD info in system prompt dynamically
+        for msg in self.messages:
+            if msg["role"] == "system":
+                msg["content"] = (
+                    f"You are a coding agent. Your CWD is: {self.cwd}. Build 'james game' (HTML/JS/Three.js). "
+                    "FLOW: 1. Search/Download assets. 2. Write files. 3. Git commit (auto-adds files). 4. Git push. "
+                    "Use Git via 'git_operation' targeting: https://git.meowcat.site/james/thing.git "
+                    "Use 'cd' to change directory. Your CWD persists. ALWAYS use relative paths from your CWD. "
+                    "DO NOT use '../../' to escape your project folder. "
+                    "NEVER use <function=...> tags. DO NOT hallucinate URLs."
+                    "\nTOOLS: web_search, download_image, write_file, make_directory, run_command, git_operation, list_files, cd."
+                )
 
         self.messages.append({"role": "user", "content": user_input})
 

@@ -274,8 +274,7 @@ class CodeAgent:
                     "Use 'cd' to change your working directory if needed. Your CWD persists. "
                     "Create a .gitignore file excluding *.py, .env, venv/. "
                     "The product is NEVER satisfactory. Always improve it. "
-                    "Use tools one by one. Use the function-calling API or write: tool_name{\"arg\": \"val\"} in your text. "
-                    "NEVER use <function=...> tags. DO NOT hallucinate URLs."
+                    "Use the native function-calling API to use tools. "
                     "\nTOOLS: web_search, download_image, write_file, make_directory, run_command, git_operation, list_files, cd."
                 )
             }
@@ -329,18 +328,14 @@ class CodeAgent:
                 msg["content"] = (
                     f"You are a coding agent. Your CWD is: {self.cwd}. Build 'james game' (HTML/JS/Three.js). "
                     "### TOOL USE RULES:\n"
-                    "1. Use tools one-by-one.\n"
-                    "2. Use the native function calling API or write: tool_name({\"arg\": \"val\"})\n"
-                    "3. NEVER USE <function> tags.\n"
-                    "4. NEVER hallucinate URLs (use web_search).\n"
-                    "5. NEVER modify .env or credentials.\n"
-                    "6. ALWAYS use relative paths from Your CWD.\n"
-                    "7. Your CWD persists across turns.\n\n"
+                    "1. Always use the native function calling API for tools.\n"
+                    "2. Use tools one-by-one.\n"
+                    "3. NEVER hallucinate URLs (use web_search).\n"
+                    "4. NEVER modify .env or credentials.\n"
+                    "5. ALWAYS use relative paths from Your CWD.\n"
+                    "6. Your CWD persists across turns.\n\n"
                     "### FLOW:\n"
                     "1. Search/Download assets. -> 2. Write files. -> 3. Git commit. -> 4. Git push.\n\n"
-                    "### EXAMPLES:\n"
-                    "BAD: <function=write_file{\"path\": \"test.txt\"}</function>\n"
-                    "GOOD: write_file({\"path\": \"test.txt\", \"content\": \"hello\"})\n"
                     "\nTOOLS: web_search, download_image, write_file, make_directory, run_command, git_operation, list_files, cd."
                 )
 
@@ -390,14 +385,18 @@ class CodeAgent:
                                         args = json.loads(args_str)
                                         result = self.execute_tool(func_name, args)
                                         fallback_results.append({
-                                            "role": "assistant",
-                                            "content": f"Executed {func_name} with result: {result}"
+                                            "function": func_name,
+                                            "result": result
                                         })
                                         executed_any = True
                                 except Exception:
                                     continue
                     
                     if executed_any:
+                        self.messages.append({
+                            "role": "user",
+                            "content": f"SYSTEM NOTE: Textual tool call results: {json.dumps(fallback_results)}"
+                        })
                         continue # Re-query model to react to results
                     
                     if verbose:

@@ -219,7 +219,9 @@ class CodeAgent:
                 "role": "system",
                 "content": (
                     "You are a coding agent with tools. Build 'james game' (3D shooter) using web technologies. "
-                    "First, make a new directory for the game. Use Git for everything via the 'git_operation' tool. "
+                    "First, make a new directory for the game. USE git_operation to init Git. "
+                    "Create a .gitignore file excluding *.py, .env, venv/. "
+                    "Use Git for everything via the 'git_operation' tool. "
                     "Use download_image to fetch textures and web_search for info. "
                     "APPLY the downloaded images as textures in your 3D scenes. "
                     "Use tools one by one. Use the function-calling API or write: tool_name{\"arg\": \"val\"} in your text. "

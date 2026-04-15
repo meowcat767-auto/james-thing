@@ -225,6 +225,7 @@ class CodeAgent:
                     "Use download_image to fetch textures and web_search for info. "
                     "APPLY the downloaded images as textures in your 3D scenes. "
                     "Use tools one by one. Use the function-calling API or write: tool_name{\"arg\": \"val\"} in your text. "
+                    "NEVER use <function=...> tags. Use ONLY the JSON format or native API."
                     "\nTOOLS: web_search, download_image, write_file, make_directory, run_command, git_operation."
                 )
             }
@@ -232,10 +233,10 @@ class CodeAgent:
 
     def parse_and_execute_textual_tool_calls(self, text):
         import re
-        # Look for patterns like tool_name{"arg": "val"}
+        # Look for patterns like tool_name{"arg": "val"} or <function=tool_name{...}
         patterns = [
-            r'(\w+)\s*(\{.*?\})', # name{"..."}
-            r'(\w+)\((.*?)\)'    # name(...)
+            r'(?:<function=)?(\w+)\s*(\{.*?\})(?:</function>)?', # handles name{"..."} and <function=name{...}</function>
+            r'(\w+)\((.*?)\)'    # handles name(...)
         ]
         
         executed_any = False

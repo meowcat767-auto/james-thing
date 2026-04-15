@@ -6,28 +6,38 @@ import time
 import re
 from dotenv import load_dotenv
 from openai import OpenAI
+try:
+    from groq import Groq
+    GROQ_AVAILABLE = True
+except ImportError:
+    GROQ_AVAILABLE = False
 from duckduckgo_search import DDGS
 import requests
 
 # Load environment variables from .env file
 load_dotenv()
 
-def get_openrouter_client():
-    api_key = os.getenv("OPENROUTER_API_KEY")
-    if not api_key:
-        print("Error: OPENROUTER_API_KEY not found in .env file or environment.")
+def get_client(provider):
+    """Create an API client for the given provider."""
+    if provider == "openrouter":
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        if not api_key:
+            print("Error: OPENROUTER_API_KEY not found.")
+            return None
+        return OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+    elif provider == "groq":
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            print("Error: GROQ_API_KEY not found.")
+            return None
+        if GROQ_AVAILABLE:
+            return Groq(api_key=api_key)
+        else:
+            # Fallback: use OpenAI client with Groq base URL
+            return OpenAI(base_url="https://api.groq.com/openai/v1", api_key=api_key)
     else:
-        print(f"Diagnostics: OPENROUTER_API_KEY found (length: {len(api_key)})")
-    
-    if not os.getenv("GIT_USERNAME") or not os.getenv("GIT_TOKEN"):
-        print("Warning: GIT_USERNAME or GIT_TOKEN not found. Git operations may fail.")
-    
-    if not api_key:
+        print(f"Error: Unknown provider '{provider}'")
         return None
-    return OpenAI(
-        base_url="https://openrouter.ai/api/v1",
-        api_key=api_key,
-    )
 
 # Tool Definitions
 def download_image(url, save_path):
@@ -302,17 +312,22 @@ def extract_balanced_json(text, start_pos):
                 return text[start_pos:i+1]
     return None
 
+MODEL_LIST = [
+    {"provider": "openrouter", "model": "minimax/minimax-m2.5:free"},
+    {"provider": "groq",       "model": "llama-3.3-70b-versatile"},
+    {"provider": "groq",       "model": "llama-3.1-8b-instant"},
+]
+
 
 class CodeAgent:
-    def __init__(self, models=["minimax/minimax-m2.5:free"]):
-        self.client = get_openrouter_client()
-        self.models = models
+    def __init__(self, models=None):
+        self.models = models or MODEL_LIST
         self.model_index = 0
-        self.model = self.models[self.model_index]
+        self._set_current_model()
         self.cwd = os.getcwd()
         self.consecutive_errors = 0
         self.empty_response_count = 0
-        self.pending_writes = 0  # Track files written since last commit
+        self.pending_writes = 0
         self.messages = [
             {
                 "role": "system",
@@ -336,6 +351,15 @@ class CodeAgent:
                 )
             }
         ]
+
+    def _set_current_model(self):
+        """Set the current model and client based on model_index."""
+        entry = self.models[self.model_index]
+        self.model = entry["model"]
+        self.provider = entry["provider"]
+        self.client = get_client(self.provider)
+        if self.client:
+            print(f"  [Provider: {self.provider}] Using model: {self.model}")
 
     def auto_commit_and_push(self, message="Auto-commit changes"):
         """Force a commit and push of any pending changes."""
@@ -396,7 +420,7 @@ class CodeAgent:
 
     def chat(self, user_input, verbose=True):
         if not self.client:
-            return "OpenRouter client not initialized. Check your .env file."
+            return "API client not initialized. Check your .env file."
 
         # Provide CWD info in system prompt dynamically
         for msg in self.messages:
@@ -427,7 +451,7 @@ class CodeAgent:
         while True:
             try:
                 if verbose:
-                    print(f"  [Thinking with {self.model}...]")
+                    print(f"  [Thinking with {self.provider}/{self.model}...]")
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=self.messages,
@@ -509,7 +533,7 @@ class CodeAgent:
                     self.consecutive_errors = 0
                     self.empty_response_count = 0
                     self.model_index = 0
-                    self.model = self.models[self.model_index]
+                    self._set_current_model()
                     
                     return response_message.content
                 else:
@@ -542,18 +566,17 @@ class CodeAgent:
                         print(f"\n[Rate Limit Hit] Consecutive error #{self.consecutive_errors}. Waiting {wait_time}s...")
                     time.sleep(wait_time)
                     
-                    # Try next model if available
+                    # Try next model/provider if available
                     self.model_index += 1
                     if self.model_index < len(self.models):
-                        self.model = self.models[self.model_index]
+                        self._set_current_model()
                         if verbose:
-                            print(f"[RATE LIMIT] Switching to fallback model: {self.model}")
+                            print(f"[RATE LIMIT] Switching to: {self.provider}/{self.model}")
                         continue 
                     else:
-                        # Reset model index for next turn starts, but keep consecutive errors for backoff
                         self.model_index = 0
-                        self.model = self.models[self.model_index]
-                        error_msg = f"All models rate limited after {self.consecutive_errors} consecutive hits. Suggest waiting longer."
+                        self._set_current_model()
+                        error_msg = f"All models/providers rate limited after {self.consecutive_errors} consecutive hits."
                 
                 if verbose:
                     print(f"\nAn error occurred: {error_msg}")
@@ -564,7 +587,8 @@ def main():
     if not agent.client:
         return
 
-    print("--- OpenRouter Code Agent (INFINITE AUTO MODE) ---")
+    print("--- Multi-Provider Code Agent (INFINITE AUTO MODE) ---")
+    print(f"Available models: {[(m['provider'] + '/' + m['model']) for m in agent.models]}")
     print("Starting mission loop...")
     
     first_run = True

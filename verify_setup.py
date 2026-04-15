@@ -34,10 +34,10 @@ def verify():
 
     # Check .env
     load_dotenv()
-    if os.getenv("GROQ_API_KEY"):
-        print("[OK] GROQ_API_KEY found in .env.")
+    if os.getenv("OPENROUTER_API_KEY"):
+        print("[OK] OPENROUTER_API_KEY found in .env.")
     else:
-        print("[INFO] GROQ_API_KEY not found in .env (this is expected if you haven't added it yet).")
+        print("[INFO] OPENROUTER_API_KEY not found in .env.")
 
 if __name__ == "__main__":
     verify()

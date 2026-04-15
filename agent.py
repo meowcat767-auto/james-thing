@@ -5,26 +5,29 @@ import json
 import time
 import re
 from dotenv import load_dotenv
-from groq import Groq
+from openai import OpenAI
 from duckduckgo_search import DDGS
 import requests
 
 # Load environment variables from .env file
 load_dotenv()
 
-def get_groq_client():
-    api_key = os.getenv("GROQ_API_KEY")
+def get_openrouter_client():
+    api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
-        print("Error: GROQ_API_KEY not found in .env file or environment.")
+        print("Error: OPENROUTER_API_KEY not found in .env file or environment.")
     else:
-        print(f"Diagnostics: GROQ_API_KEY found (length: {len(api_key)})")
+        print(f"Diagnostics: OPENROUTER_API_KEY found (length: {len(api_key)})")
     
     if not os.getenv("GIT_USERNAME") or not os.getenv("GIT_TOKEN"):
         print("Warning: GIT_USERNAME or GIT_TOKEN not found. Git operations may fail.")
     
     if not api_key:
         return None
-    return Groq(api_key=api_key)
+    return OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=api_key,
+    )
 
 # Tool Definitions
 def download_image(url, save_path):
@@ -272,12 +275,13 @@ tools = [
 ]
 
 class CodeAgent:
-    def __init__(self, models=["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]):
-        self.client = get_groq_client()
+    def __init__(self, models=["openrouter/free"]):
+        self.client = get_openrouter_client()
         self.models = models
         self.model_index = 0
         self.model = self.models[self.model_index]
         self.cwd = os.getcwd()
+        self.consecutive_errors = 0
         self.messages = [
             {
                 "role": "system",
@@ -338,7 +342,7 @@ class CodeAgent:
 
     def chat(self, user_input, verbose=True):
         if not self.client:
-            return "Groq client not initialized. Check your .env file."
+            return "OpenRouter client not initialized. Check your .env file."
 
         # Provide CWD info in system prompt dynamically
         for msg in self.messages:
@@ -426,6 +430,12 @@ class CodeAgent:
                     
                     if verbose:
                         print(f"\nAgent: {response_message.content}")
+                    
+                    # Reset error counters on success
+                    self.consecutive_errors = 0
+                    self.model_index = 0
+                    self.model = self.models[self.model_index]
+                    
                     return response_message.content
                 else:
                     return "Model returned empty response."
@@ -433,23 +443,30 @@ class CodeAgent:
             except Exception as e:
                 error_msg = str(e)
                 if "rate_limit" in error_msg.lower() or "429" in error_msg:
-                    retry_after = 5
-                    # Try to extract retry-after from the header if possible
+                    self.consecutive_errors += 1
+                    base_retry = 5
                     if hasattr(e, 'response') and e.response:
-                        retry_after = int(e.response.headers.get("retry-after", 5))
+                        base_retry = int(e.response.headers.get("retry-after", 5))
+                    
+                    # Exponential backoff: base_retry * 2^(errors-1)
+                    wait_time = min(base_retry * (2 ** (self.consecutive_errors - 1)), 600)
                     
                     if verbose:
-                        print(f"\n[Rate Limit Hit] Waiting {retry_after}s before switching...")
-                    time.sleep(retry_after)
+                        print(f"\n[Rate Limit Hit] Consecutive error #{self.consecutive_errors}. Waiting {wait_time}s...")
+                    time.sleep(wait_time)
                     
+                    # Try next model if available
                     self.model_index += 1
                     if self.model_index < len(self.models):
                         self.model = self.models[self.model_index]
                         if verbose:
                             print(f"[RATE LIMIT] Switching to fallback model: {self.model}")
-                        continue # Retry with new model
+                        continue 
                     else:
-                        error_msg = "All models rate limited. Please wait."
+                        # Reset model index for next turn starts, but keep consecutive errors for backoff
+                        self.model_index = 0
+                        self.model = self.models[self.model_index]
+                        error_msg = f"All models rate limited after {self.consecutive_errors} consecutive hits. Suggest waiting longer."
                 
                 if verbose:
                     print(f"\nAn error occurred: {error_msg}")
@@ -460,13 +477,7 @@ def main():
     if not agent.client:
         return
 
-    if len(sys.argv) > 1:
-        user_input = " ".join(sys.argv[1:])
-        print(f"--- Running Command: {user_input} ---")
-        agent.chat(user_input, verbose=True)
-        return
-
-    print("--- Groq Code Agent (INFINITE AUTO MODE) ---")
+    print("--- OpenRouter Code Agent (INFINITE AUTO MODE) ---")
     print("Starting mission loop...")
     
     first_run = True
@@ -482,14 +493,22 @@ def main():
                 response = agent.chat("Review the current state of 'James Game'. If it can be improved (textures, features, polish), do so. Otherwise, look for ways to expand the app or build a companion app. Always use tools.", verbose=True)
                 print(f"\n[Turn Result] {response}")
             
-            print("\nCycle complete. Waiting 10 seconds before next iteration...")
-            time.sleep(10)
+            # If we hit rate limits, wait longer before next tick
+            if "rate limited" in response.lower():
+                wait_multiplier = min(agent.consecutive_errors, 5)
+                tick_sleep = 30 * wait_multiplier
+                print(f"\nRate limits active. Increasing tick wait to {tick_sleep} seconds...")
+            else:
+                tick_sleep = 15
+                print(f"\nCycle complete. Waiting {tick_sleep} seconds before next iteration...")
+            
+            time.sleep(tick_sleep)
         except KeyboardInterrupt:
             print("\nInfinite loop stopped by user.")
             break
         except Exception as e:
             print(f"\nError in loop: {str(e)}")
-            time.sleep(30)
+            time.sleep(60)
 
 if __name__ == "__main__":
     main()

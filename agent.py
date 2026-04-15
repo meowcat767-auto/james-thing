@@ -304,7 +304,7 @@ def extract_balanced_json(text, start_pos):
 
 
 class CodeAgent:
-    def __init__(self, models=["minimax/minimax-m2.5:free"]):
+    def __init__(self, models=["openrouter/free"]):
         self.client = get_openrouter_client()
         self.models = models
         self.model_index = 0

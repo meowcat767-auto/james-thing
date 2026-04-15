@@ -142,46 +142,64 @@ class CodeAgent:
     def __init__(self, model="llama-3.3-70b-versatile"):
         self.client = get_groq_client()
         self.model = model
-        self.messages = [
-            {
-                "role": "system",
                 "content": (
-                    "You are a coding assistant. Goal: Build 'james game' (3D shooter, HTML/JS/Three.js). "
-                    "Use tools one by one. Use the function-calling API only. No <function=...> tags."
+                    "You are a coding agent with tools. Build 'james game' (3D shooter). "
+                    "Use tools one by one. Use the function-calling API or write: tool_name{\"arg\": \"val\"} in your text. "
+                    "\nTOOLS: web_search, download_image, write_file, make_directory, run_command."
                 )
             }
         ]
 
-    def process_tool_calls(self, tool_calls):
+    def parse_and_execute_textual_tool_calls(self, text):
+        import re
+        # Look for patterns like tool_name{"arg": "val"}
+        patterns = [
+            r'(\w+)\s*(\{.*?\})', # name{"..."}
+            r'(\w+)\((.*?)\)'    # name(...)
+        ]
+        
+        executed_any = False
         results = []
-        for tool_call in tool_calls:
-            function_name = tool_call.function.name
-            args = json.loads(tool_call.function.arguments)
-            
-            # Clean logging
-            print(f"  [ACTION] {function_name}({args})")
-            
-            if function_name == "write_file":
-                result = write_file(args.get("path"), args.get("content"))
-            elif function_name == "make_directory":
-                result = make_directory(args.get("path"))
-            elif function_name == "run_command":
-                result = run_command(args.get("command"))
-            elif function_name == "web_search":
-                result = web_search(args.get("query"))
-            elif function_name == "download_image":
-                result = download_image(args.get("url"), args.get("save_path"))
-            else:
-                result = "Unknown tool"
-            
-            print(f"  [RESULT] {result}")
-            results.append({
-                "tool_call_id": tool_call.id,
-                "role": "tool",
-                "name": function_name,
-                "content": result
-            })
-        return results
+        
+        for pattern in patterns:
+            for match in re.finditer(pattern, text):
+                func_name = match.group(1)
+                args_str = match.group(2)
+                
+                # Check if it's actually one of our tools
+                if any(t["function"]["name"] == func_name for t in tools):
+                    try:
+                        # Try to parse args as JSON
+                        if args_str.startswith('{'):
+                            args = json.loads(args_str)
+                        else:
+                            # Not handled: positional args in name(...)
+                            continue
+                            
+                        print(f"  [FALLBACK ACTION] {func_name}({args})")
+                        
+                        if func_name == "write_file":
+                            result = write_file(args.get("path"), args.get("content"))
+                        elif func_name == "make_directory":
+                            result = make_directory(args.get("path"))
+                        elif func_name == "run_command":
+                            result = run_command(args.get("command"))
+                        elif func_name == "web_search":
+                            result = web_search(args.get("query"))
+                        elif func_name == "download_image":
+                            result = download_image(args.get("url"), args.get("save_path"))
+                        else:
+                            result = "Unknown tool"
+                            
+                        print(f"  [RESULT] {result}")
+                        results.append({
+                            "role": "assistant",
+                            "content": f"Executed {func_name} with result: {result}"
+                        })
+                        executed_any = True
+                    except Exception:
+                        continue
+        return executed_any, results
 
     def chat(self, user_input, verbose=True):
         if not self.client:
@@ -204,10 +222,18 @@ class CodeAgent:
                 if response_message.tool_calls:
                     tool_results = self.process_tool_calls(response_message.tool_calls)
                     self.messages.extend(tool_results)
-                else:
+                elif response_message.content:
+                    # Fallback for textual tool calls
+                    executed_any, fallback_results = self.parse_and_execute_textual_tool_calls(response_message.content)
+                    if executed_any:
+                        self.messages.extend(fallback_results)
+                        continue # Re-query model to react to results
+                    
                     if verbose:
                         print(f"\nAgent: {response_message.content}")
                     return response_message.content
+                else:
+                    return "Model returned empty response."
 
             except Exception as e:
                 error_msg = f"An error occurred: {str(e)}"

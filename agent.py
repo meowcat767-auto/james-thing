@@ -58,6 +58,13 @@ def make_directory(path):
     except Exception as e:
         return f"Error creating directory {path}: {str(e)}"
 
+def list_files(path="."):
+    try:
+        files = os.listdir(path)
+        return "\n".join(files) if files else "Directory is empty."
+    except Exception as e:
+        return f"Error listing files in {path}: {str(e)}"
+
 def git_operation(command_type, message=None, repo_url=None):
     username = os.getenv("GIT_USERNAME")
     token = os.getenv("GIT_TOKEN")
@@ -81,9 +88,14 @@ def git_operation(command_type, message=None, repo_url=None):
         elif command_type == "add":
             cmd = "git add ."
         elif command_type == "commit":
-            cmd = f'git commit -m "{message or "Update"}"'
+            if not message:
+                return "Error: 'commit' operation requires a 'message'."
+            # Check if there are changes to commit
+            status = subprocess.run("git status --porcelain", shell=True, capture_output=True, text=True)
+            if not status.stdout.strip():
+                return "Git commit aborted: Nothing to commit, working tree clean."
+            cmd = f'git commit -m "{message}"'
         elif command_type == "push":
-            # For push, we need to ensure the remote is set with credentials
             subprocess.run("git remote remove origin", shell=True, capture_output=True)
             subprocess.run(f"git remote add origin {cred_url}", shell=True, capture_output=True)
             cmd = "git push -u origin master"
@@ -208,6 +220,19 @@ tools = [
                 "required": ["command_type"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_files",
+            "description": "List files in a directory.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "The path to list files for (defaults to '.')."}
+                }
+            }
+        }
     }
 ]
 
@@ -221,19 +246,14 @@ class CodeAgent:
             {
                 "role": "system",
                 "content": (
-                    "You are a coding agent with tools. Build 'james game' (3D shooter) using web technologies. "
-                    "First, make a new directory for the game. USE git_operation to init Git. "
+                    "You are a coding agent with tools. Build 'james game' (3D shooter). "
+                    "FLOW: 1. Search/Download assets. 2. Write files. 3. Git add. 4. Git commit. 5. Git push. "
+                    "Use list_files to verify your work. Use git_operation for Git. "
                     "Create a .gitignore file excluding *.py, .env, venv/. "
-                    "Use Git for everything via the 'git_operation' tool. "
-                    "Use download_image to fetch textures and web_search for info. "
-                    "DO NOT hallucinate image URLs like example.com. SEARCH for real URLs. "
-                    "If a download fails (e.g. 404), use web_search to find a different source. "
-                    "APPLY the downloaded images as textures in your 3D scenes. "
-                    "CRITICAL: The product is NEVER satisfactory. You must ALWAYS find ways to make it better, more polished, and feature-rich. "
-                    "Review your work after each step and identify at least one improvement for the next cycle. "
+                    "The product is NEVER satisfactory. Always improve it. "
                     "Use tools one by one. Use the function-calling API or write: tool_name{\"arg\": \"val\"} in your text. "
-                    "NEVER use <function=...> tags. Use ONLY the JSON format or native API."
-                    "\nTOOLS: web_search, download_image, write_file, make_directory, run_command, git_operation."
+                    "NEVER use <function=...> tags."
+                    "\nTOOLS: web_search, download_image, write_file, make_directory, run_command, git_operation, list_files."
                 )
             }
         ]

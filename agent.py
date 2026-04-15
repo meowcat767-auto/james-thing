@@ -278,7 +278,7 @@ class CodeAgent:
                     "Use 'cd' to change your working directory if needed. Your CWD persists. "
                     "Create a .gitignore file excluding *.py, .env, venv/. "
                     "The product is NEVER satisfactory. Always improve it. "
-                    "Use the native function-calling API to use tools. "
+                    "Use the native function-calling API to use tools. NEVER wrap tool calls in <function> or <tool_call> tags. "
                     "\nTOOLS: web_search, download_image, write_file, make_directory, run_command, git_operation, list_files, cd."
                 )
             }
@@ -335,7 +335,7 @@ class CodeAgent:
                     "Use git_operation for Git targeting: https://git.meowcat.site/james/thing.git\n"
                     "NEVER hallucinate or use any other Git URLs (like GitHub placeholders).\n\n"
                     "### TOOL USE RULES:\n"
-                    "1. Always use the native function calling API for tools.\n"
+                    "1. Always use the NATIVE function calling API for tools. NEVER wrap tool calls in tags like <function> or <tool_call>.\n"
                     "2. Use tools one-by-one.\n"
                     "3. NEVER hallucinate URLs (use web_search).\n"
                     "4. NEVER modify .env or credentials.\n"

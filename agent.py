@@ -218,6 +218,8 @@ class CodeAgent:
                 "content": (
                     "You are a coding agent with tools. Build 'james game' (3D shooter) using web technologies. "
                     "First, make a new directory for the game. Use Git for everything via the 'git_operation' tool. "
+                    "Use download_image to fetch textures and web_search for info. "
+                    "APPLY the downloaded images as textures in your 3D scenes. "
                     "Use tools one by one. Use the function-calling API or write: tool_name{\"arg\": \"val\"} in your text. "
                     "\nTOOLS: web_search, download_image, write_file, make_directory, run_command, git_operation."
                 )

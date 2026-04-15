@@ -226,6 +226,8 @@ class CodeAgent:
                     "Create a .gitignore file excluding *.py, .env, venv/. "
                     "Use Git for everything via the 'git_operation' tool. "
                     "Use download_image to fetch textures and web_search for info. "
+                    "DO NOT hallucinate image URLs like example.com. SEARCH for real URLs. "
+                    "If a download fails (e.g. 404), use web_search to find a different source. "
                     "APPLY the downloaded images as textures in your 3D scenes. "
                     "Use tools one by one. Use the function-calling API or write: tool_name{\"arg\": \"val\"} in your text. "
                     "NEVER use <function=...> tags. Use ONLY the JSON format or native API."

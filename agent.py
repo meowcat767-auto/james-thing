@@ -2,6 +2,8 @@ import os
 import sys
 import subprocess
 import json
+import time
+import re
 from dotenv import load_dotenv
 from groq import Groq
 from duckduckgo_search import DDGS
@@ -287,10 +289,12 @@ class CodeAgent:
                     "Create a .gitignore file excluding *.py, .env, venv/. "
                     "The product is NEVER satisfactory. Always improve it. "
                     "### TOOL CALLING RULES:\n"
-                    "1. ALWAYS use the NATIVE function-calling API. Use the tools as structured outputs.\n"
-                    "2. STRICTLY FORBIDDEN: Do NOT output text-based tags like <function=...> or <tool_call>.\n"
-                    "3. If you use the forbidden tags, the system will CRASH. Use only the native API.\n"
-                    "\nTOOLS: web_search, download_image, write_file, make_directory, run_command, git_operation, list_files, cd."
+                    "1. Execute tools by outputting tags like: <function=tool_name{\"arg\": \"val\"}></function>\n"
+                    "2. ALWAYS use valid JSON for arguments.\n"
+                    "3. ONLY output the tool call tag when using a tool.\n"
+                    "### TOOL DEFINITIONS:\n"
+                    f"{json.dumps(tools, indent=2)}\n"
+                    "\nAVAILABLE TOOLS: web_search, download_image, write_file, make_directory, run_command, git_operation, list_files, cd."
                 )
             }
         ]
@@ -346,18 +350,15 @@ class CodeAgent:
                     "Use git_operation for Git targeting: https://git.meowcat.site/james/thing.git\n"
                     "NEVER hallucinate or use any other Git URLs (like GitHub placeholders).\n\n"
                     "### TOOL USE RULES:\n"
-                    "1. ALWAYS use the NATIVE function calling API for tools. NEVER wrap tool calls in tags like <function> or <tool_call>.\n"
-                    "2. FORBIDDEN FORMAT: <function=tool_name{...}></function> (DO NOT USE THIS).\n"
-                    "3. FORBIDDEN FORMAT: <tool_call>...</tool_call> (DO NOT USE THIS).\n"
-                    "4. These forbidden formats cause a SYSTEM CRASH. Use only the native tool calling feature.\n"
-                    "5. Use tools one-by-one.\n"
-                    "6. NEVER hallucinate URLs (use web_search).\n"
-                    "7. NEVER modify .env or credentials.\n"
-                    "8. ALWAYS use relative paths from Your CWD.\n"
-                    "9. Your CWD persists across turns.\n\n"
-                    "### FLOW:\n"
-                    "1. Search/Download assets. -> 2. Write files. -> 3. Git commit. -> 4. Git push.\n\n"
-                    "\nTOOLS: web_search, download_image, write_file, make_directory, run_command, git_operation, list_files, cd."
+                    "1. Execute tools by outputting tags: <function=tool_name{\"arg\": \"val\"}></function>\n"
+                    "2. Use tools one-by-one.\n"
+                    "3. NEVER hallucinate URLs (use web_search).\n"
+                    "4. NEVER modify .env or credentials.\n"
+                    "5. ALWAYS use relative paths from Your CWD.\n"
+                    "6. Your CWD persists across turns.\n\n"
+                    "### TOOL DEFINITIONS:\n"
+                    f"{json.dumps(tools, indent=2)}\n"
+                    "\nAVAILABLE TOOLS: web_search, download_image, write_file, make_directory, run_command, git_operation, list_files, cd."
                 )
 
         self.messages.append({"role": "user", "content": user_input})
@@ -369,8 +370,9 @@ class CodeAgent:
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=self.messages,
-                    tools=tools,
-                    tool_choice="auto"
+                    # Disabled native tools to bypass 400 validation errors
+                    # tools=tools,
+                    # tool_choice="auto"
                 )
                 
                 response_message = response.choices[0].message
@@ -467,7 +469,6 @@ def main():
     print("--- Groq Code Agent (INFINITE AUTO MODE) ---")
     print("Starting mission loop...")
     
-    import time
     first_run = True
     while True:
         try:

@@ -324,7 +324,8 @@ class CodeAgent:
 
         # Provide CWD info in system prompt dynamically
         for msg in self.messages:
-            if msg["role"] == "system":
+            role = getattr(msg, 'role', None) or (msg.get('role') if isinstance(msg, dict) else None)
+            if role == "system":
                 msg["content"] = (
                     f"You are a coding agent. Your CWD is: {self.cwd}. Build 'james game' (HTML/JS/Three.js). "
                     "FLOW: 1. Search/Download assets. 2. Write files. 3. Git commit (auto-adds files). 4. Git push. "

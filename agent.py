@@ -14,7 +14,9 @@ def get_groq_client():
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         print("Error: GROQ_API_KEY not found in .env file.")
-        print("Please create a .env file based on .env.example and add your API key.")
+    if not os.getenv("GIT_USERNAME") or not os.getenv("GIT_TOKEN"):
+        print("Warning: GIT_USERNAME or GIT_TOKEN not found. Git operations may fail.")
+    if not api_key:
         return None
     return Groq(api_key=api_key)
 

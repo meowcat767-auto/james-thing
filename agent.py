@@ -67,7 +67,7 @@ def list_files(path="."):
     except Exception as e:
         return f"Error listing files in {path}: {str(e)}"
 
-def git_operation(command_type, message=None, repo_url=None):
+def git_operation(command_type, message=None, repo_url=None, cwd="."):
     username = os.getenv("GIT_USERNAME")
     token = os.getenv("GIT_TOKEN")
     default_repo = "https://git.meowcat.site/james/thing.git"
@@ -93,32 +93,32 @@ def git_operation(command_type, message=None, repo_url=None):
             if not message:
                 return "Error: 'commit' operation requires a 'message'."
             # Check if there are changes to commit
-            status = subprocess.run("git status --porcelain", shell=True, capture_output=True, text=True)
+            status = subprocess.run("git status --porcelain", shell=True, capture_output=True, text=True, cwd=cwd)
             if not status.stdout.strip():
                 return "Git commit aborted: Nothing to commit, working tree clean."
             cmd = f'git commit -m "{message}"'
         elif command_type == "push":
-            subprocess.run("git remote remove origin", shell=True, capture_output=True)
-            subprocess.run(f"git remote add origin {cred_url}", shell=True, capture_output=True)
+            subprocess.run("git remote remove origin", shell=True, capture_output=True, cwd=cwd)
+            subprocess.run(f"git remote add origin {cred_url}", shell=True, capture_output=True, cwd=cwd)
             cmd = "git push -u origin master"
         elif command_type == "pull":
             cmd = "git pull origin master"
         else:
             return f"Unknown git operation: {command_type}"
 
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30, cwd=cwd)
         output = result.stdout + result.stderr
         return f"Git {command_type} executed. Exit code: {result.returncode}\nOutput:\n{output}"
     except Exception as e:
         return f"Error executing git operation: {str(e)}"
 
-def run_command(command):
+def run_command(command, cwd="."):
     try:
         # Prevent manual git push/pull/clone to encourage git_operation tool
         if any(git_cmd in command for git_cmd in ["git push", "git pull", "git clone"]):
             return "Please use the 'git_operation' tool for push, pull, or clone to ensure credentials are handled correctly."
         
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30, cwd=cwd)
         output = result.stdout + result.stderr
         return f"Command executed. Exit code: {result.returncode}\nOutput:\n{output}"
     except Exception as e:
@@ -235,6 +235,7 @@ tools = [
                 }
             }
         }
+    },
     {
         "type": "function",
         "function": {
@@ -257,21 +258,78 @@ class CodeAgent:
         self.models = models
         self.model_index = 0
         self.model = self.models[self.model_index]
+        self.cwd = os.getcwd()
         self.messages = [
             {
                 "role": "system",
                 "content": (
                     "You are a coding agent with tools. Build 'james game' (3D shooter) using Web Technologies (HTML/CSS/JS/Three.js). "
                     "FLOW: 1. Search/Download assets. 2. Write files (index.html, JS, etc.). 3. Git add. 4. Git commit. 5. Git push. "
-                    "Use Git for everything via the 'git_operation' tool targeting: https://git.meowcat.site/james/thing.git "
+                    "Use list_files to verify your work. Use git_operation for Git targeting: https://git.meowcat.site/james/thing.git "
+                    "Use 'cd' to change your working directory if needed. Your CWD persists. "
                     "Create a .gitignore file excluding *.py, .env, venv/. "
                     "The product is NEVER satisfactory. Always improve it. "
                     "Use tools one by one. Use the function-calling API or write: tool_name{\"arg\": \"val\"} in your text. "
                     "NEVER use <function=...> tags. DO NOT hallucinate URLs."
-                    "\nTOOLS: web_search, download_image, write_file, make_directory, run_command, git_operation, list_files."
+                    "\nTOOLS: web_search, download_image, write_file, make_directory, run_command, git_operation, list_files, cd."
                 )
             }
         ]
+
+    def execute_tool(self, func_name, args):
+        print(f"  [ACTION] {func_name}({args})")
+        result = "Unknown tool"
+        
+        try:
+            if func_name == "write_file":
+                path = os.path.join(self.cwd, args.get("path"))
+                result = write_file(path, args.get("content"))
+            elif func_name == "make_directory":
+                path = os.path.join(self.cwd, args.get("path"))
+                result = make_directory(path)
+            elif func_name == "run_command":
+                result = run_command(args.get("command"), cwd=self.cwd)
+            elif func_name == "web_search":
+                result = web_search(args.get("query"))
+            elif func_name == "download_image":
+                save_path = args.get("save_path") or args.get("path") # Handle both arg names
+                path = os.path.join(self.cwd, save_path)
+                result = download_image(args.get("url"), path)
+            elif func_name == "git_operation":
+                result = git_operation(args.get("command_type"), args.get("message"), args.get("repo_url"), cwd=self.cwd)
+            elif func_name == "list_files":
+                path = os.path.join(self.cwd, args.get("path", "."))
+                result = list_files(path)
+            elif func_name == "cd":
+                new_path = os.path.abspath(os.path.join(self.cwd, args.get("path")))
+                if os.path.isdir(new_path):
+                    self.cwd = new_path
+                    result = f"Changed directory to {self.cwd}"
+                else:
+                    result = f"Error: {new_path} is not a directory."
+            
+            print(f"  [RESULT] {result}")
+            return result
+        except Exception as e:
+            return f"Error executing {func_name}: {str(e)}"
+
+    def chat(self, user_input, verbose=True):
+        if not self.client:
+            return "Groq client not initialized. Check your .env file."
+
+        self.messages.append({"role": "user", "content": user_input})
+
+        while True:
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=self.messages,
+                    tools=tools,
+                    tool_choice="auto"
+                )
+                
+                response_message = response.choices[0].message
+                self.messages.append(response_message)
 
                 if response_message.tool_calls:
                     results = []
@@ -311,9 +369,9 @@ class CodeAgent:
                                         executed_any = True
                                 except Exception:
                                     continue
+                    
                     if executed_any:
-                        self.messages.extend(fallback_results)
-                        continue
+                        continue # Re-query model to react to results
                     
                     if verbose:
                         print(f"\nAgent: {response_message.content}")
@@ -337,24 +395,21 @@ class CodeAgent:
                     print(f"\nAn error occurred: {error_msg}")
                 return error_msg
 
-import time
-
 def main():
     agent = CodeAgent()
     if not agent.client:
         return
 
-    # Check for command-line arguments
     if len(sys.argv) > 1:
         user_input = " ".join(sys.argv[1:])
         print(f"--- Running Command: {user_input} ---")
         agent.chat(user_input, verbose=True)
         return
 
-    # Infinite Automatic Mode
     print("--- Groq Code Agent (INFINITE AUTO MODE) ---")
     print("Starting mission loop...")
     
+    import time
     first_run = True
     while True:
         try:

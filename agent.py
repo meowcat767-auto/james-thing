@@ -325,6 +325,7 @@ class CodeAgent:
         # Provide CWD info in system prompt dynamically
         for msg in self.messages:
             role = getattr(msg, 'role', None) or (msg.get('role') if isinstance(msg, dict) else None)
+            if role == "system":
                 msg["content"] = (
                     f"You are a coding agent. Your CWD is: {self.cwd}. Build 'james game' (HTML/JS/Three.js). "
                     "### TOOL USE RULES:\n"

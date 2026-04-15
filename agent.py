@@ -221,7 +221,7 @@ tools = [
                     },
                     "repo_url": {
                         "type": "string", 
-                        "description": "Optional repository URL. Defaults to the James Game repo."
+                        "description": "Optional repository URL. ALMOST NEVER provide this. Only use it if you have a non-hallucinated URL from web_search that differs from the mandatory one."
                     }
                 },
                 "required": ["command_type"]
@@ -327,6 +327,9 @@ class CodeAgent:
             if role == "system":
                 msg["content"] = (
                     f"You are a coding agent. Your CWD is: {self.cwd}. Build 'james game' (HTML/JS/Three.js). "
+                    "### MANDATORY GIT URL:\n"
+                    "Use git_operation for Git targeting: https://git.meowcat.site/james/thing.git\n"
+                    "NEVER hallucinate or use any other Git URLs (like GitHub placeholders).\n\n"
                     "### TOOL USE RULES:\n"
                     "1. Always use the native function calling API for tools.\n"
                     "2. Use tools one-by-one.\n"

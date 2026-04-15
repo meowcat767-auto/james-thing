@@ -229,6 +229,8 @@ class CodeAgent:
                     "DO NOT hallucinate image URLs like example.com. SEARCH for real URLs. "
                     "If a download fails (e.g. 404), use web_search to find a different source. "
                     "APPLY the downloaded images as textures in your 3D scenes. "
+                    "CRITICAL: The product is NEVER satisfactory. You must ALWAYS find ways to make it better, more polished, and feature-rich. "
+                    "Review your work after each step and identify at least one improvement for the next cycle. "
                     "Use tools one by one. Use the function-calling API or write: tool_name{\"arg\": \"val\"} in your text. "
                     "NEVER use <function=...> tags. Use ONLY the JSON format or native API."
                     "\nTOOLS: web_search, download_image, write_file, make_directory, run_command, git_operation."

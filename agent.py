@@ -430,12 +430,21 @@ class CodeAgent:
 
             except Exception as e:
                 error_msg = str(e)
-                if "rate_limit_exceeded" in error_msg.lower() or "429" in error_msg:
+                if "rate_limit" in error_msg.lower() or "429" in error_msg:
+                    retry_after = 5
+                    # Try to extract retry-after from the header if possible
+                    if hasattr(e, 'response') and e.response:
+                        retry_after = int(e.response.headers.get("retry-after", 5))
+                    
+                    if verbose:
+                        print(f"\n[Rate Limit Hit] Waiting {retry_after}s before switching...")
+                    time.sleep(retry_after)
+                    
                     self.model_index += 1
                     if self.model_index < len(self.models):
                         self.model = self.models[self.model_index]
                         if verbose:
-                            print(f"\n[RATE LIMIT] Switching to fallback model: {self.model}")
+                            print(f"[RATE LIMIT] Switching to fallback model: {self.model}")
                         continue # Retry with new model
                     else:
                         error_msg = "All models rate limited. Please wait."

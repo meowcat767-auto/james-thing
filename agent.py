@@ -248,11 +248,11 @@ class CodeAgent:
                 "content": (
                     "You are a coding agent with tools. Build 'james game' (3D shooter). "
                     "FLOW: 1. Search/Download assets. 2. Write files. 3. Git add. 4. Git commit. 5. Git push. "
-                    "Use list_files to verify your work. Use git_operation for Git. "
+                    "Use Git for everything via the 'git_operation' tool targeting: https://git.meowcat.site/james/thing.git "
                     "Create a .gitignore file excluding *.py, .env, venv/. "
                     "The product is NEVER satisfactory. Always improve it. "
                     "Use tools one by one. Use the function-calling API or write: tool_name{\"arg\": \"val\"} in your text. "
-                    "NEVER use <function=...> tags."
+                    "NEVER use <function=...> tags. DO NOT hallucinate URLs."
                     "\nTOOLS: web_search, download_image, write_file, make_directory, run_command, git_operation, list_files."
                 )
             }

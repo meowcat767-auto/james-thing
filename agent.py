@@ -304,7 +304,7 @@ def extract_balanced_json(text, start_pos):
 
 
 class CodeAgent:
-    def __init__(self, models=["openrouter/free"]):
+    def __init__(self, models=["minimax/minimax-m2.5:free"]):
         self.client = get_openrouter_client()
         self.models = models
         self.model_index = 0
@@ -312,6 +312,7 @@ class CodeAgent:
         self.cwd = os.getcwd()
         self.consecutive_errors = 0
         self.empty_response_count = 0
+        self.pending_writes = 0  # Track files written since last commit
         self.messages = [
             {
                 "role": "system",
@@ -336,6 +337,17 @@ class CodeAgent:
             }
         ]
 
+    def auto_commit_and_push(self, message="Auto-commit changes"):
+        """Force a commit and push of any pending changes."""
+        print("  [AUTO-COMMIT] Committing and pushing pending changes...")
+        commit_result = git_operation("commit", message=message, cwd=self.cwd)
+        print(f"  [AUTO-COMMIT] {commit_result}")
+        if "Exit code: 0" in commit_result:
+            push_result = git_operation("push", cwd=self.cwd)
+            print(f"  [AUTO-PUSH] {push_result}")
+            return f"Committed and pushed: {commit_result}\n{push_result}"
+        return commit_result
+
     def execute_tool(self, func_name, args):
         print(f"  [ACTION] {func_name}({args})")
         result = "Unknown tool"
@@ -344,6 +356,8 @@ class CodeAgent:
             if func_name == "write_file":
                 path = os.path.join(self.cwd, args.get("path"))
                 result = write_file(path, args.get("content"))
+                if "Successfully" in result:
+                    self.pending_writes += 1
             elif func_name == "make_directory":
                 path = os.path.join(self.cwd, args.get("path"))
                 result = make_directory(path)
@@ -369,6 +383,13 @@ class CodeAgent:
                     result = f"Error: {new_path} is not a directory."
             
             print(f"  [RESULT] {result}")
+            
+            # Auto-commit after every 2 file writes or after git-unrelated tool calls if writes are pending
+            if self.pending_writes >= 2 or (self.pending_writes > 0 and func_name not in ["write_file", "make_directory", "cd", "list_files"]):
+                commit_msg = f"Auto-commit: {self.pending_writes} file(s) updated"
+                self.auto_commit_and_push(commit_msg)
+                self.pending_writes = 0
+            
             return result
         except Exception as e:
             return f"Error executing {func_name}: {str(e)}"

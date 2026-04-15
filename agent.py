@@ -304,7 +304,7 @@ def extract_balanced_json(text, start_pos):
 
 
 class CodeAgent:
-    def __init__(self, models=["openrouter/free"]):
+    def __init__(self, models=["minimax/minimax-m2.5:free"]):
         self.client = get_openrouter_client()
         self.models = models
         self.model_index = 0
@@ -458,34 +458,41 @@ class CodeAgent:
                     executed_any = False
                     fallback_results = []
                     
-                    # Pattern: <function=tool_name{...JSON...}></function>
+                    # Pattern: <function=tool_name{...JSON...}></function> or <function=list_files></function> (no args)
                     tool_names = [t["function"]["name"] for t in tools]
                     for tool_name in tool_names:
-                        # Look for <function=tool_name{ or just tool_name{
-                        for prefix in [f'<function={tool_name}', f'{tool_name}']:
-                            search_start = 0
-                            while True:
-                                idx = content.find(prefix, search_start)
-                                if idx == -1:
-                                    break
-                                # Find the opening brace
-                                brace_start = content.find('{', idx + len(prefix) - 1)
-                                if brace_start == -1 or brace_start > idx + len(prefix) + 2:
-                                    search_start = idx + 1
-                                    continue
-                                json_str = extract_balanced_json(content, brace_start)
+                        # Look for <function=tool_name
+                        search_start = 0
+                        while True:
+                            # Try <function=tool_name pattern
+                            prefix = f'<function={tool_name}'
+                            idx = content.find(prefix, search_start)
+                            if idx == -1:
+                                break
+                            after_prefix = idx + len(prefix)
+                            # Check what comes after the tool name
+                            if after_prefix < len(content) and content[after_prefix] == '{':
+                                # Has JSON arguments
+                                json_str = extract_balanced_json(content, after_prefix)
                                 if json_str:
                                     try:
                                         args = json.loads(json_str)
                                         result = self.execute_tool(tool_name, args)
-                                        fallback_results.append({
-                                            "function": tool_name,
-                                            "result": result
-                                        })
+                                        fallback_results.append({"function": tool_name, "result": result})
                                         executed_any = True
                                     except json.JSONDecodeError:
                                         pass
-                                search_start = brace_start + len(json_str) if json_str else idx + 1
+                                    search_start = after_prefix + (len(json_str) if json_str else 1)
+                                else:
+                                    search_start = after_prefix + 1
+                            elif after_prefix < len(content) and content[after_prefix] in ('>', '\n', ' ', ')'):
+                                # No arguments — call with empty args
+                                result = self.execute_tool(tool_name, {})
+                                fallback_results.append({"function": tool_name, "result": result})
+                                executed_any = True
+                                search_start = after_prefix + 1
+                            else:
+                                search_start = after_prefix + 1
                     
                     if executed_any:
                         self.empty_response_count = 0

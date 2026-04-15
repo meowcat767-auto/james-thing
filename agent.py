@@ -209,9 +209,11 @@ tools = [
 ]
 
 class CodeAgent:
-    def __init__(self, model="llama-3.3-70b-versatile"):
+    def __init__(self, models=["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama3-70b-8192"]):
         self.client = get_groq_client()
-        self.model = model
+        self.models = models
+        self.model_index = 0
+        self.model = self.models[self.model_index]
         self.messages = [
             {
                 "role": "system",
@@ -347,9 +349,19 @@ class CodeAgent:
                     return "Model returned empty response."
 
             except Exception as e:
-                error_msg = f"An error occurred: {str(e)}"
+                error_msg = str(e)
+                if "rate_limit_exceeded" in error_msg.lower() or "429" in error_msg:
+                    self.model_index += 1
+                    if self.model_index < len(self.models):
+                        self.model = self.models[self.model_index]
+                        if verbose:
+                            print(f"\n[RATE LIMIT] Switching to fallback model: {self.model}")
+                        continue # Retry with new model
+                    else:
+                        error_msg = "All models rate limited. Please wait."
+                
                 if verbose:
-                    print(error_msg)
+                    print(f"\nAn error occurred: {error_msg}")
                 return error_msg
 
 import time

@@ -239,7 +239,7 @@ tools = [
 ]
 
 class CodeAgent:
-    def __init__(self, models=["llama-3.3-70b-versatile", "mixtral-8x7b-32768", "llama-3.1-8b-instant"]):
+    def __init__(self, models=["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"]):
         self.client = get_groq_client()
         self.models = models
         self.model_index = 0

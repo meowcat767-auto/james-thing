@@ -142,8 +142,12 @@ class CodeAgent:
     def __init__(self, model="llama-3.3-70b-versatile"):
         self.client = get_groq_client()
         self.model = model
+        self.messages = [
+            {
+                "role": "system",
                 "content": (
-                    "You are a coding agent with tools. Build 'james game' (3D shooter). "
+                    "You are a coding agent with tools. Build 'james game' (3D shooter) using web technologies. "
+                    "First, make a new directory for the game. Use Git for everything. "
                     "Use tools one by one. Use the function-calling API or write: tool_name{\"arg\": \"val\"} in your text. "
                     "\nTOOLS: web_search, download_image, write_file, make_directory, run_command."
                 )

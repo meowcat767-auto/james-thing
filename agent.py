@@ -235,6 +235,19 @@ tools = [
                 }
             }
         }
+    {
+        "type": "function",
+        "function": {
+            "name": "cd",
+            "description": "Change the current working directory. The directory persists for future commands.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "The path to change to."}
+                },
+                "required": ["path"]
+            }
+        }
     }
 ]
 
@@ -260,123 +273,47 @@ class CodeAgent:
             }
         ]
 
-    def parse_and_execute_textual_tool_calls(self, text):
-        import re
-        # Look for patterns like tool_name{"arg": "val"} or <function=tool_name{...}
-        patterns = [
-            r'(?:<function=)?(\w+)\s*(\{.*?\})(?:</function>)?', # handles name{"..."} and <function=name{...}</function>
-            r'(\w+)\((.*?)\)'    # handles name(...)
-        ]
-        
-        executed_any = False
-        results = []
-        
-        for pattern in patterns:
-            for match in re.finditer(pattern, text):
-                func_name = match.group(1)
-                args_str = match.group(2)
-                
-                # Check if it's actually one of our tools
-                if any(t["function"]["name"] == func_name for t in tools):
-                    try:
-                        # Try to parse args as JSON
-                        if args_str.startswith('{'):
-                            args = json.loads(args_str)
-                        else:
-                            # Not handled: positional args in name(...)
-                            continue
-                            
-                        print(f"  [FALLBACK ACTION] {func_name}({args})")
-                        
-                        if func_name == "write_file":
-                            result = write_file(args.get("path"), args.get("content"))
-                        elif func_name == "make_directory":
-                            result = make_directory(args.get("path"))
-                        elif func_name == "run_command":
-                            result = run_command(args.get("command"))
-                        elif func_name == "web_search":
-                            result = web_search(args.get("query"))
-                        elif func_name == "download_image":
-                            result = download_image(args.get("url"), args.get("save_path"))
-                        elif func_name == "git_operation":
-                            result = git_operation(args.get("command_type"), args.get("message"), args.get("repo_url"))
-                        elif func_name == "list_files":
-                            result = list_files(args.get("path", "."))
-                        else:
-                            result = "Unknown tool"
-                            
-                        print(f"  [RESULT] {result}")
-                        results.append({
-                            "role": "assistant",
-                            "content": f"Executed {func_name} with result: {result}"
-                        })
-                        executed_any = True
-                    except Exception:
-                        continue
-        return executed_any, results
-
-    def process_tool_calls(self, tool_calls):
-        results = []
-        for tool_call in tool_calls:
-            function_name = tool_call.function.name
-            args = json.loads(tool_call.function.arguments)
-            
-            # Clean logging
-            print(f"  [ACTION] {function_name}({args})")
-            
-            if function_name == "write_file":
-                result = write_file(args.get("path"), args.get("content"))
-            elif function_name == "make_directory":
-                result = make_directory(args.get("path"))
-            elif function_name == "run_command":
-                result = run_command(args.get("command"))
-            elif function_name == "web_search":
-                result = web_search(args.get("query"))
-            elif function_name == "download_image":
-                result = download_image(args.get("url"), args.get("save_path"))
-            elif function_name == "git_operation":
-                result = git_operation(args.get("command_type"), args.get("message"), args.get("repo_url"))
-            elif function_name == "list_files":
-                result = list_files(args.get("path", "."))
-            else:
-                result = "Unknown tool"
-            
-            print(f"  [RESULT] {result}")
-            results.append({
-                "tool_call_id": tool_call.id,
-                "role": "tool",
-                "name": function_name,
-                "content": result
-            })
-        return results
-
-    def chat(self, user_input, verbose=True):
-        if not self.client:
-            return "Groq client not initialized. Check your .env file."
-
-        self.messages.append({"role": "user", "content": user_input})
-
-        while True:
-            try:
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=self.messages,
-                    tools=tools,
-                    tool_choice="auto"
-                )
-                
-                response_message = response.choices[0].message
-                self.messages.append(response_message)
-
                 if response_message.tool_calls:
-                    tool_results = self.process_tool_calls(response_message.tool_calls)
-                    self.messages.extend(tool_results)
+                    results = []
+                    for tool_call in response_message.tool_calls:
+                        function_name = tool_call.function.name
+                        args = json.loads(tool_call.function.arguments)
+                        result = self.execute_tool(function_name, args)
+                        results.append({
+                            "tool_call_id": tool_call.id,
+                            "role": "tool",
+                            "name": function_name,
+                            "content": result
+                        })
+                    self.messages.extend(results)
                 elif response_message.content:
                     # Fallback for textual tool calls
-                    executed_any, fallback_results = self.parse_and_execute_textual_tool_calls(response_message.content)
+                    import re
+                    patterns = [
+                        r'(?:<function=)?(\w+)\s*(\{.*?\})(?:</function>)?',
+                        r'(\w+)\((.*?)\)'
+                    ]
+                    executed_any = False
+                    fallback_results = []
+                    for pattern in patterns:
+                        for match in re.finditer(pattern, response_message.content):
+                            func_name = match.group(1)
+                            args_str = match.group(2)
+                            if any(t["function"]["name"] == func_name for t in tools):
+                                try:
+                                    if args_str.startswith('{'):
+                                        args = json.loads(args_str)
+                                        result = self.execute_tool(func_name, args)
+                                        fallback_results.append({
+                                            "role": "assistant",
+                                            "content": f"Executed {func_name} with result: {result}"
+                                        })
+                                        executed_any = True
+                                except Exception:
+                                    continue
                     if executed_any:
                         self.messages.extend(fallback_results)
-                        continue # Re-query model to react to results
+                        continue
                     
                     if verbose:
                         print(f"\nAgent: {response_message.content}")

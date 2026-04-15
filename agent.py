@@ -248,8 +248,8 @@ class CodeAgent:
             {
                 "role": "system",
                 "content": (
-                    "You are a coding agent with tools. Build 'james game' (3D shooter). "
-                    "FLOW: 1. Search/Download assets. 2. Write files. 3. Git add. 4. Git commit. 5. Git push. "
+                    "You are a coding agent with tools. Build 'james game' (3D shooter) using Web Technologies (HTML/CSS/JS/Three.js). "
+                    "FLOW: 1. Search/Download assets. 2. Write files (index.html, JS, etc.). 3. Git add. 4. Git commit. 5. Git push. "
                     "Use Git for everything via the 'git_operation' tool targeting: https://git.meowcat.site/james/thing.git "
                     "Create a .gitignore file excluding *.py, .env, venv/. "
                     "The product is NEVER satisfactory. Always improve it. "

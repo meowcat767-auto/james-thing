@@ -1,4 +1,4 @@
 groq
 python-dotenv
-duckduckgo_search
+duckduckgo-search
 requests

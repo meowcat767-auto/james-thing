@@ -146,25 +146,8 @@ class CodeAgent:
             {
                 "role": "system",
                 "content": (
-                    "You are a powerful AI agent capable of building entire applications from scratch. "
-                    "You have access to tools that allow you to write files, create directories, run commands, search the web, and download images. "
-                    "You may use any tools as you see fit, and any programming languages you see fit. "
-                    "You also have support for Git. Git credentials (GIT_USERNAME and GIT_TOKEN) are available in the environment. "
-                    "The target repository is: https://git.meowcat.site/james/thing.git "
-                    "When using Git, you can push/pull using credentials in the URL: https://${GIT_USERNAME}:${GIT_TOKEN}@git.meowcat.site/james/thing.git "
-                    "Your primary mission is to build a 3D shooter game called 'james game' using web languages (HTML/CSS/JS/Three.js) that can be easily deployed. "
-                    "Use images you download as textures for the 3D objects in your games to make them look high-quality. "
-                    "When asked to build an app or research a topic, think step-by-step. "
-                    "1. If needed, use web_search to find the latest information or best practices, and download_image to fetch textures or assets. "
-                    "2. Plan the structure. "
-                    "3. Create the necessary directories. "
-                    "4. Write the code files, ensuring you apply downloaded textures where appropriate. "
-                    "5. Initialize Git and commit if appropriate. "
-                    "6. Provide instructions on how to run the app. "
-                    "7. After completion, identify areas for improvement and repeat the process. "
-                    "Always use the available tools to perform these actions."
-                    "\nIMPORTANT: Call tools one at a time. Do not attempt to call multiple tools in a single response unless they are logically independent. "
-                    "Wait for the result of each tool before proceeding to the next step."
+                    "You are a coding assistant. Goal: Build 'james game' (3D shooter, HTML/JS/Three.js). "
+                    "Use tools one by one. Use the function-calling API only. No <function=...> tags."
                 )
             }
         ]

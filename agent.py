@@ -87,6 +87,10 @@ def git_operation(command_type, message=None, repo_url=None, cwd="."):
         cred_url = repo_url
 
     try:
+        # Detect current branch
+        branch_result = subprocess.run("git branch --show-current", shell=True, capture_output=True, text=True, cwd=cwd)
+        current_branch = branch_result.stdout.strip() or "master"
+
         if command_type == "clone":
             cmd = f"git clone {cred_url} ."
         elif command_type == "init":
@@ -96,28 +100,32 @@ def git_operation(command_type, message=None, repo_url=None, cwd="."):
         elif command_type == "commit":
             if not message:
                 return "Error: 'commit' operation requires a 'message'."
-            # Configure identity and auto-add before commit
+            # Configure identity
             subprocess.run('git config user.email "james@james.net"', shell=True, cwd=cwd)
             subprocess.run('git config user.name "James"', shell=True, cwd=cwd)
-            subprocess.run("git add .", shell=True, cwd=cwd)
-            # Check if there are changes to commit
+            # Auto-add
+            add_result = subprocess.run("git add .", shell=True, capture_output=True, text=True, cwd=cwd)
+            if add_result.returncode != 0:
+                return f"Git add failed:\n{add_result.stdout}\n{add_result.stderr}"
+            # Check if there are changes
             status = subprocess.run("git status --porcelain", shell=True, capture_output=True, text=True, cwd=cwd)
             if not status.stdout.strip():
                 return "Git commit aborted: Nothing to commit, working tree clean."
-            cmd = f'git commit -m "{message}"'
+            # Secure message with single quotes for shell
+            safe_message = message.replace("'", "'\\''")
+            cmd = f"git commit -m '{safe_message}'"
         elif command_type == "push":
-            # Auto-add and commit empty-ish if needed? No, just push.
             subprocess.run("git remote remove origin", shell=True, capture_output=True, cwd=cwd)
             subprocess.run(f"git remote add origin {cred_url}", shell=True, capture_output=True, cwd=cwd)
-            cmd = "git push -u origin master"
+            cmd = f"git push -u origin {current_branch}"
         elif command_type == "pull":
-            cmd = "git pull origin master"
+            cmd = f"git pull origin {current_branch}"
         else:
             return f"Unknown git operation: {command_type}"
 
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30, cwd=cwd)
         output = result.stdout + result.stderr
-        return f"Git {command_type} executed. Exit code: {result.returncode}\nOutput:\n{output}"
+        return f"Git {command_type} executed on branch '{current_branch}'. Exit code: {result.returncode}\nOutput:\n{output}"
     except Exception as e:
         return f"Error executing git operation: {str(e)}"
 

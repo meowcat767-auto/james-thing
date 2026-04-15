@@ -7,3 +7,4 @@ node_modules/
 *.sh
 requirements.txt
 verify_setup.py
+setup_server.sh

@@ -331,6 +331,7 @@ class CodeAgent:
                     "Use Git via 'git_operation' targeting: https://git.meowcat.site/james/thing.git "
                     "Use 'cd' to change directory. Your CWD persists. ALWAYS use relative paths from your CWD. "
                     "DO NOT use '../../' to escape your project folder. "
+                    "CRITICAL: NEVER modify .env or any credentials/tokens. Use them but do not change them. "
                     "NEVER use <function=...> tags. DO NOT hallucinate URLs."
                     "\nTOOLS: web_search, download_image, write_file, make_directory, run_command, git_operation, list_files, cd."
                 )

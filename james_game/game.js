@@ -1,5 +1,6 @@
 // Import necessary libraries
 import * as THREE from 'three';
+import levels from './levels.json';
 
 // Create the game scene
 const scene = new THREE.Scene();
@@ -16,6 +17,28 @@ const cube = new THREE.Mesh(geometry, material);
 scene.add(cube);
 
 camera.position.z = 5;
+
+// Load levels
+let currentLevel = 0;
+let levelData = levels[currentLevel];
+
+// Create obstacles
+levelData.obstacles.forEach((obstacle) => {
+  const obstacleGeometry = new THREE.BoxGeometry(1, 1, 1);
+  const obstacleMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+  const obstacleMesh = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
+  obstacleMesh.position.x = obstacle.x;
+  obstacleMesh.position.y = obstacle.y;
+  scene.add(obstacleMesh);
+});
+
+// Create goal
+const goalGeometry = new THREE.BoxGeometry(1, 1, 1);
+const goalMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+const goalMesh = new THREE.Mesh(goalGeometry, goalMaterial);
+goalMesh.position.x = levelData.goal.x;
+goalMesh.position.y = levelData.goal.y;
+scene.add(goalMesh);
 
 // Animation loop
 function animate() {

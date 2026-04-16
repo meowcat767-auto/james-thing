@@ -313,7 +313,7 @@ def extract_balanced_json(text, start_pos):
     return None
 
 MODEL_LIST = [
-    {"provider": "openrouter", "model": "minimax/minimax-m2.5:free"},
+    {"provider": "openrouter", "model": "free"},
     {"provider": "groq",       "model": "llama-3.3-70b-versatile"},
     {"provider": "groq",       "model": "llama-3.1-8b-instant"},
 ]

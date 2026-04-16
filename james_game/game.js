@@ -9,22 +9,6 @@ const renderer = new THREE.WebGLRenderer({
   antialias: true
 });
 
-// Load textures
-const skyTexture = new THREE.TextureLoader().load('assets/textures/sky.png');
-const groundTexture = new THREE.TextureLoader().load('assets/textures/ground.png');
-
-// Add skybox
-const skyGeometry = new THREE.SkyGeometry();
-const skyMaterial = new THREE.SkyMaterial({ skyTexture: skyTexture });
-const sky = new THREE.Mesh(skyGeometry, skyMaterial);
-scene.add(sky);
-
-// Add ground
-const groundGeometry = new THREE.PlaneGeometry(100, 100);
-const groundMaterial = new THREE.MeshBasicMaterial({ map: groundTexture });
-const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-scene.add(ground);
-
 // Create a cube
 const geometry = new THREE.BoxGeometry(1, 1, 1);
 const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
@@ -42,3 +26,16 @@ function animate() {
 }
 
 animate();
+
+// Add keyboard controls
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'ArrowUp') {
+    cube.position.y += 0.1;
+  } else if (event.key === 'ArrowDown') {
+    cube.position.y -= 0.1;
+  } else if (event.key === 'ArrowLeft') {
+    cube.position.x -= 0.1;
+  } else if (event.key === 'ArrowRight') {
+    cube.position.x += 0.1;
+  }
+});

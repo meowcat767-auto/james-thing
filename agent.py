@@ -461,7 +461,24 @@ class CodeAgent:
                 )
                 
                 response_message = response.choices[0].message
-                self.messages.append(response_message)
+                # Sanitize: only keep fields the API accepts (role, content, tool_calls)
+                # This avoids sending unsupported fields like 'reasoning_details' back to Groq
+                clean_msg = {"role": response_message.role or "assistant"}
+                if response_message.content:
+                    clean_msg["content"] = response_message.content
+                if response_message.tool_calls:
+                    clean_msg["tool_calls"] = [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments,
+                            },
+                        }
+                        for tc in response_message.tool_calls
+                    ]
+                self.messages.append(clean_msg)
 
                 if response_message.tool_calls:
                     results = []

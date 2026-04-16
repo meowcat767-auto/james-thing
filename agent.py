@@ -570,7 +570,7 @@ class CodeAgent:
 
             except Exception as e:
                 error_msg = str(e)
-                if "rate_limit" in error_msg.lower() or "429" in error_msg:
+                if "rate_limit" in error_msg.lower() or "429" in error_msg or "402" in error_msg or "insufficient credits" in error_msg.lower():
                     self.consecutive_errors += 1
                     base_retry = 5
                     if hasattr(e, 'response') and e.response:

@@ -9,6 +9,22 @@ const renderer = new THREE.WebGLRenderer({
   antialias: true
 });
 
+// Load textures
+const skyTexture = new THREE.TextureLoader().load('assets/textures/sky.png');
+const groundTexture = new THREE.TextureLoader().load('assets/textures/ground.png');
+
+// Add skybox
+const skyGeometry = new THREE.SkyGeometry();
+const skyMaterial = new THREE.SkyMaterial({ skyTexture: skyTexture });
+const sky = new THREE.Mesh(skyGeometry, skyMaterial);
+scene.add(sky);
+
+// Add ground
+const groundGeometry = new THREE.PlaneGeometry(100, 100);
+const groundMaterial = new THREE.MeshBasicMaterial({ map: groundTexture });
+const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+scene.add(ground);
+
 // Create a cube
 const geometry = new THREE.BoxGeometry(1, 1, 1);
 const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
